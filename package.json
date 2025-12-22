@@ -15,8 +15,8 @@
     "@stockfish/bun": "^0.0.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.4",
-    "oxfmt": "^0.18.0",
+    "@types/bun": "^1.3.5",
+    "oxfmt": "^0.20.0",
     "typescript": "^5.9.3"
   }
 }
