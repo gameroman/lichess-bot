@@ -1,47 +1,45 @@
+import { Lichess } from "@lichess/api";
 import type * as schemas from "@lichess/api/schemas";
 
-import { Lichess } from "@lichess/api";
-
+import { Game } from "./game";
 import type { ApiStreamEvent } from "./types";
 
-import { Game } from "./game";
-
 export class Computer {
-  private readonly client: Lichess;
+  readonly #client: Lichess;
 
   constructor() {
     const token = process.env.LICHESS_BOT_TOKEN;
     if (!token) {
       throw new Error("LICHESS_BOT_TOKEN is not set");
     }
-    this.client = new Lichess({ token });
+    this.#client = new Lichess({ token });
   }
 
   public async run() {
-    const response = await this.client.apiStreamEvent();
+    const response = await this.#client.apiStreamEvent();
     for await (const event of response.stream) {
-      this.handleEvent(event);
+      this.#handleEvent(event);
     }
   }
 
-  private handleEvent(event: ApiStreamEvent) {
+  #handleEvent(event: ApiStreamEvent) {
     switch (event.type) {
       case "challenge": {
-        this.handleChallengeEvent(event);
+        this.#handleChallengeEvent(event);
         return;
       }
       case "gameStart": {
-        this.handleGameStart(event.game);
+        this.#handleGameStart(event.game);
         return;
       }
     }
   }
 
-  private handleChallengeEvent(event: schemas.ChallengeEvent) {
+  #handleChallengeEvent(event: schemas.ChallengeEvent) {
     const challenge = event.challenge;
 
     if (event.compat && !event.compat.bot) {
-      this.client.challengeDecline({
+      this.#client.challengeDecline({
         challengeId: challenge.id,
         body: { reason: "tooFast" },
       });
@@ -49,7 +47,7 @@ export class Computer {
     }
 
     if (challenge.variant.key !== "standard") {
-      this.client.challengeDecline({
+      this.#client.challengeDecline({
         challengeId: challenge.id,
         body: { reason: "standard" },
       });
@@ -57,17 +55,17 @@ export class Computer {
     }
 
     if (challenge.timeControl.type !== "clock") {
-      this.client.challengeDecline({
+      this.#client.challengeDecline({
         challengeId: challenge.id,
         body: { reason: "timeControl" },
       });
       return;
     }
 
-    this.client.challengeAccept({ challengeId: challenge.id });
+    this.#client.challengeAccept({ challengeId: challenge.id });
   }
 
-  private handleGameStart(event_game: schemas.GameEventInfo) {
-    new Game(this.client, event_game).start();
+  #handleGameStart(event_game: schemas.GameEventInfo) {
+    new Game(this.#client, event_game).start();
   }
 }
