@@ -8,17 +8,30 @@ export class Game {
   #client: Lichess;
   #game: schemas.GameEventInfo;
   #gameId: string;
-  #stockfish!: Stockfish;
+  #myColor?: schemas.GameColor;
+  #stockfish: Stockfish;
 
-  constructor(client: Lichess, game: schemas.GameEventInfo) {
+  constructor(
+    client: Lichess,
+    game: schemas.GameEventInfo,
+    stockfish: Stockfish,
+  ) {
+    this.#stockfish = stockfish;
     this.#client = client;
     this.#game = game;
+    this.#myColor = game.color;
     this.#gameId = game.gameId;
   }
 
-  public async start() {
-    this.#stockfish = await Stockfish.start({ path: process.env.STOCKFISH_PATH });
+  public static async start(client: Lichess, gameEvent: schemas.GameEventInfo) {
+    const stockfish = await Stockfish.start({
+      path: process.env.STOCKFISH_PATH,
+    });
 
+    return new Game(client, gameEvent, stockfish);
+  }
+
+  async run() {
     if (this.#game.isMyTurn) {
       this.#stockfish.set_fen_position(this.#game.fen!);
       const move = (await this.#stockfish.get_best_move_time(150))!;
@@ -54,8 +67,8 @@ export class Game {
     }
   }
 
-  async #handleGamePosition(gameState: schemas.GameStateEvent) {
-    const moves = gameState.moves.split(/\s+/);
+  async #handleGamePosition(state: schemas.GameStateEvent) {
+    const moves = state.moves.split(/\s+/);
 
     await this.#stockfish.set_fen_position(this.#game.fen!);
     await this.#stockfish.make_moves_from_current_position(moves);
@@ -63,15 +76,18 @@ export class Game {
     const isWhiteTurn = moves.length % 2 === 0;
     const turn = isWhiteTurn ? "white" : "black";
 
-    if (turn !== this.#game.color) {
-      return; // Not our turn
+    if (turn !== this.#myColor) {
+      return;
     }
 
-    const time_remaining = this.#game.color === "white" ? gameState.wtime : gameState.btime;
+    const timeRemaining = isWhiteTurn ? state.wtime : state.btime;
 
-    const time_bonus = this.#game.color === "white" ? gameState.winc : gameState.binc;
+    const timeBonus = isWhiteTurn ? state.winc : state.binc;
 
-    const time_to_think = Math.min(Math.max(0, time_bonus - 100) + time_remaining / 300, 60 * 1000);
+    const time_to_think = Math.min(
+      Math.max(0, timeBonus - 100) + timeRemaining / 300,
+      60 * 1000,
+    );
 
     const move = (await this.#stockfish.get_best_move_time(time_to_think))!;
 

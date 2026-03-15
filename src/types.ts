@@ -1,16 +1,20 @@
 import type { Lichess } from "@lichess/api";
 
-type AsyncIteratorValue<T extends AsyncGenerator> = Exclude<
-  Awaited<ReturnType<T["next"]>>["value"],
-  void
+type StreamResult<T> = T extends {
+  stream: AsyncGenerator<infer Y, unknown, unknown>;
+}
+  ? Y
+  : never;
+
+type StreamReturn<K extends keyof Lichess> = StreamResult<
+  Awaited<ReturnType<Lichess[K]>>
 >;
 
-type LichessStreamReturnType<T extends keyof Lichess & `${string}Stream${"" | "Event"}`> =
-  Awaited<ReturnType<Lichess[T]>> extends {
-    stream?: infer U extends AsyncGenerator;
-  }
-    ? AsyncIteratorValue<U>
-    : never;
+type LichessStreamKey = {
+  [K in keyof Lichess]: StreamReturn<K> extends never ? never : K;
+}[keyof Lichess];
 
-export type ApiStreamEvent = LichessStreamReturnType<"apiStreamEvent">;
-export type BotGameStreamEvent = LichessStreamReturnType<"botGameStream">;
+type LichessStreamEvent<K extends LichessStreamKey> = StreamReturn<K>;
+
+export type ApiStreamEvent = LichessStreamEvent<"apiStreamEvent">;
+export type BotGameStreamEvent = LichessStreamEvent<"botGameStream">;

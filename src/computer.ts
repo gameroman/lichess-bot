@@ -65,7 +65,8 @@ export class Computer {
     this.#client.challengeAccept({ challengeId: challenge.id });
   }
 
-  #handleGameStart(event_game: schemas.GameEventInfo) {
-    new Game(this.#client, event_game).start();
+  async #handleGameStart(gameEvent: schemas.GameEventInfo) {
+    const game = await Game.start(this.#client, gameEvent);
+    await game.run();
   }
 }

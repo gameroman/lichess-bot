@@ -1,8 +1,8 @@
 import { Computer } from "./computer";
 
-function main() {
+async function main() {
   const computer = new Computer();
-  computer.run();
+  await computer.run();
 }
 
-main();
+await main();
