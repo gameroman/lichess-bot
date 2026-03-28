@@ -10,58 +10,69 @@ export class Game {
   #gameId: string;
   #myColor?: schemas.GameColor;
   #stockfish: Stockfish;
+  #onEnd?: () => void;
 
   constructor(
     client: Lichess,
     game: schemas.GameEventInfo,
     stockfish: Stockfish,
+    onEnd?: () => void,
   ) {
     this.#stockfish = stockfish;
     this.#client = client;
     this.#game = game;
     this.#myColor = game.color;
     this.#gameId = game.gameId;
+    this.#onEnd = onEnd;
   }
 
-  public static async start(client: Lichess, gameEvent: schemas.GameEventInfo) {
+  public static async start(
+    client: Lichess,
+    gameEvent: schemas.GameEventInfo,
+    onEnd?: () => void,
+  ) {
     const stockfish = await Stockfish.start({
       path: process.env.STOCKFISH_PATH,
     });
 
-    return new Game(client, gameEvent, stockfish);
+    return new Game(client, gameEvent, stockfish, onEnd);
   }
 
   async run() {
-    if (this.#game.isMyTurn) {
-      this.#stockfish.set_fen_position(this.#game.fen!);
-      const move = (await this.#stockfish.get_best_move_time(150))!;
-      await this.#client.botGameMove({ gameId: this.#gameId, move });
-    }
+    try {
+      if (this.#game.isMyTurn) {
+        await this.#stockfish.set_fen_position(this.#game.fen!);
+        const move = (await this.#stockfish.get_best_move_time(150))!;
+        await this.#client.botGameMove({ gameId: this.#gameId, move });
+      }
 
-    const res = await this.#client.botGameStream({ gameId: this.#gameId });
+      const res = await this.#client.botGameStream({ gameId: this.#gameId });
 
-    if (res.status === 404) {
-      return;
-    }
+      if (res.status === 404) {
+        return;
+      }
 
-    for await (const event of res.stream) {
-      this.#handleGameEvent(event);
+      for await (const event of res.stream) {
+        void this.#handleGameEvent(event);
+      }
+    } finally {
+      this.#onEnd?.();
     }
   }
 
-  #handleGameEvent(event: BotGameStreamEvent) {
+  async #handleGameEvent(event: BotGameStreamEvent) {
     switch (event.type) {
       case "gameState": {
-        this.#handleGameStateEvent(event);
+        await this.#handleGameStateEvent(event);
         return;
       }
     }
   }
 
-  #handleGameStateEvent(gameState: schemas.GameStateEvent) {
+  async #handleGameStateEvent(gameState: schemas.GameStateEvent) {
     switch (gameState.status) {
       case "started": {
-        this.#handleGamePosition(gameState);
+        await this.#handleGamePosition(gameState);
         return;
       }
     }
@@ -91,6 +102,6 @@ export class Game {
 
     const move = (await this.#stockfish.get_best_move_time(time_to_think))!;
 
-    this.#client.botGameMove({ gameId: this.#gameId, move });
+    await this.#client.botGameMove({ gameId: this.#gameId, move });
   }
 }
